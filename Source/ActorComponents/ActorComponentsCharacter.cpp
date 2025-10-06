@@ -11,6 +11,38 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
 #include "ActorComponents.h"
+#include "Components/SphereComponent.h"
+#include "InteractableComponent.h"
+
+DEFINE_LOG_CATEGORY(LogTemplateCharacter);
+
+
+void AActorComponentsCharacter::OnOverlapBegin(class UPrimitiveComponent* OverlappedComp, class AActor* OtherActor, class UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	//GEngine->AddOnScreenDebugMessage(-1, 4.f, FColor::Green, FString::Printf(TEXT("Overlap began with: %s"), *GetNameSafe(OtherActor)));
+	if (OtherActor && (OtherActor != this) && OtherComp)
+	{
+		UInteractableComponent* Interactable = OtherActor->FindComponentByClass<UInteractableComponent>();
+		if (Interactable && Interactable->CanInteract())
+		{
+			CurrentInteractable = Interactable;
+			CurrentInteractable->TurnOn();
+		}
+	}
+}
+
+void AActorComponentsCharacter::OnOverlapEnd(class UPrimitiveComponent* OverlappedComp, class AActor* OtherActor, class UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
+{
+	if (OtherActor && (OtherActor != this) && OtherComp)
+	{
+		UInteractableComponent* Interactable = OtherActor->FindComponentByClass<UInteractableComponent>();
+		if (Interactable && Interactable == CurrentInteractable)
+		{
+			CurrentInteractable->TurnOff();
+			CurrentInteractable = nullptr;
+		}
+	}
+}
 
 AActorComponentsCharacter::AActorComponentsCharacter()
 {
@@ -56,6 +88,43 @@ void AActorComponentsCharacter::BeginPlay()
 {
 	// Call the base class  
 	Super::BeginPlay();
+
+	DefaultWalkSpeed = GetCharacterMovement()->MaxWalkSpeed;
+
+	StaminaComponent = FindComponentByClass<UStaminaComponent>();
+	if (!StaminaComponent)
+	{
+		UE_LOG(LogActorComponents, Error, TEXT("'%s' Failed to find StaminaComponent. Please add a StaminaComponent to the character."), *GetNameSafe(this));
+	}
+
+	InteractionSphere = FindComponentByClass<USphereComponent>();
+	if (InteractionSphere) {
+		InteractionSphere->OnComponentBeginOverlap.AddDynamic(this, &AActorComponentsCharacter::OnOverlapBegin);
+		InteractionSphere->OnComponentEndOverlap.AddDynamic(this, &AActorComponentsCharacter::OnOverlapEnd);
+	}
+	else
+	{
+		UE_LOG(LogActorComponents, Error, TEXT("'%s' Failed to find InteractionSphere. Please add a SphereComponent to the character and name it 'InteractionSphere'."), *GetNameSafe(this));
+	}
+
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		if (ULocalPlayer* LP = PC->GetLocalPlayer())
+		{
+			if (UEnhancedInputLocalPlayerSubsystem* Subsystem = LP->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
+			{
+				if (DefaultMappingContext)
+				{
+					Subsystem->AddMappingContext(DefaultMappingContext, 0);
+				}
+				else
+				{
+					UE_LOG(LogTemplateCharacter, Warning, TEXT("DefaultMappingContext is not set on %s"), *GetNameSafe(this));
+				}
+			}
+		}
+	}
+
 }
 
 void AActorComponentsCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -73,6 +142,10 @@ void AActorComponentsCharacter::SetupPlayerInputComponent(UInputComponent* Playe
 
 		// Looking
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AActorComponentsCharacter::Look);
+
+		//Sprinting
+		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Started, this, &AActorComponentsCharacter::StartSprinting);
+		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Completed, this, &AActorComponentsCharacter::StopSprinting);
 	}
 	else
 	{
@@ -96,6 +169,44 @@ void AActorComponentsCharacter::Look(const FInputActionValue& Value)
 
 	// route the input
 	DoLook(LookAxisVector.X, LookAxisVector.Y);
+}
+
+void AActorComponentsCharacter::StartSprinting()
+{
+	if (StaminaComponent && StaminaComponent->HasEnoughStamina(20.0f))
+	{
+		bWantsToSprint = true;
+		StaminaComponent->bIsSprinting = true;
+		GetCharacterMovement()->MaxWalkSpeed = DefaultWalkSpeed * SprintSpeedMultiplier;
+	}
+}
+
+void AActorComponentsCharacter::StopSprinting()
+{
+	bWantsToSprint = false;
+	StaminaComponent->bIsSprinting = false;
+	GetCharacterMovement()->MaxWalkSpeed = DefaultWalkSpeed;
+}
+
+void AActorComponentsCharacter::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	if (StaminaComponent)
+	{
+		if (bWantsToSprint && StaminaComponent->CurrentStamina > 0)
+		{
+			StaminaComponent->DrainStamina(DeltaTime);
+			if (StaminaComponent->CurrentStamina <= 0)
+			{
+				StopSprinting();
+			}
+		}
+		else
+		{
+			StaminaComponent->RecoverStamina(DeltaTime);
+		}
+	}
 }
 
 void AActorComponentsCharacter::DoMove(float Right, float Forward)

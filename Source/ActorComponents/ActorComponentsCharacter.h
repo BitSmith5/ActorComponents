@@ -5,13 +5,17 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "Logging/LogMacros.h"
+#include "InputMappingContext.h"
+#include "InputAction.h"
 #include "HealthComponent.h"
+#include "StaminaComponent.h"
 #include "ActorComponentsCharacter.generated.h"
 
 class USpringArmComponent;
 class UCameraComponent;
 class UInputAction;
 struct FInputActionValue;
+
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 
@@ -31,8 +35,12 @@ class AActorComponentsCharacter : public ACharacter
 	/** Follow camera */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UCameraComponent* FollowCamera;
+
 	
 protected:
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputMappingContext* DefaultMappingContext;
 
 	/** Jump Input Action */
 	UPROPERTY(EditAnywhere, Category="Input")
@@ -50,8 +58,22 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Input")
 	UInputAction* MouseLookAction;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Input")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* SprintAction;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	UHealthComponent* HealthComponent;
+
+	UPROPERTY()
+	class UInteractableComponent* CurrentInteractable;
+
+	UFUNCTION()
+	void OnOverlapBegin(class UPrimitiveComponent* OverlappedComp, class AActor* OtherActor, class UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+
+	UFUNCTION()
+	void OnOverlapEnd(class UPrimitiveComponent* OverlappedComp, class AActor* OtherActor, class UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
+
+	float DefaultWalkSpeed;
 
 public:
 
@@ -72,6 +94,23 @@ protected:
 
 	/** Called for looking input */
 	void Look(const FInputActionValue& Value);
+
+protected:
+
+	UPROPERTY(BlueprintReadOnly, Category = "Components")
+	UStaminaComponent* StaminaComponent;
+
+	class USphereComponent* InteractionSphere;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
+	float SprintSpeedMultiplier = 1.5f;
+
+	bool bWantsToSprint = false;
+
+	void StartSprinting();
+	void StopSprinting();
+
+	virtual void Tick(float DeltaTime) override;
 
 public:
 
