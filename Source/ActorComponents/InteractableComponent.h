@@ -19,16 +19,10 @@ public:
 	UInteractableComponent();
 
 	UPROPERTY(BlueprintAssignable, Category = "Interaction")
-	FOnInteract OnActivate;
+	FOnInteract OnInteract;
 
-	UPROPERTY(BlueprintAssignable, Category = "Interaction")
-	FOnInteract OnDeactivate;
-
-	UFUNCTION(BlueprintCallable, Category = "Interaction")
-	void TurnOn();
-
-	UFUNCTION(BlueprintCallable, Category = "Interaction")
-	void TurnOff();
+	UFUNCTION(BlueprintCallable, Category = "Interation")
+	void Interact();
 
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
 	bool CanInteract() const { return bCanInteract; }
@@ -38,11 +32,5 @@ protected:
 	virtual void BeginPlay() override;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
-	bool bCanInteract = true;
-
-public:	
-	// Called every frame
-	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
-
-		
+	bool bCanInteract = true;	
 };

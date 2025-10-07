@@ -26,7 +26,6 @@ void AActorComponentsCharacter::OnOverlapBegin(class UPrimitiveComponent* Overla
 		if (Interactable && Interactable->CanInteract())
 		{
 			CurrentInteractable = Interactable;
-			CurrentInteractable->TurnOn();
 		}
 	}
 }
@@ -38,9 +37,16 @@ void AActorComponentsCharacter::OnOverlapEnd(class UPrimitiveComponent* Overlapp
 		UInteractableComponent* Interactable = OtherActor->FindComponentByClass<UInteractableComponent>();
 		if (Interactable && Interactable == CurrentInteractable)
 		{
-			CurrentInteractable->TurnOff();
 			CurrentInteractable = nullptr;
 		}
+	}
+}
+
+void AActorComponentsCharacter::Interact()
+{
+	if (CurrentInteractable)
+	{
+		CurrentInteractable->Interact();
 	}
 }
 
@@ -146,6 +152,8 @@ void AActorComponentsCharacter::SetupPlayerInputComponent(UInputComponent* Playe
 		//Sprinting
 		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Started, this, &AActorComponentsCharacter::StartSprinting);
 		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Completed, this, &AActorComponentsCharacter::StopSprinting);
+
+		EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &AActorComponentsCharacter::Interact);
 	}
 	else
 	{
